@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El poderoso juego de Pacman</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #333;
+        }
+        #gameInfo {
+            margin-bottom: 10px;
+        }
+        #restartButton {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>El poderoso juego de Pacman</h1>
+    <div id="gameInfo">Nivel: <span id="level">1</span> | Puntos: <span id="score">0</span></div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <button id="restartButton" onclick="restartGame()">Reiniciar Juego</button>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const cellSize = 20;
+        let ghostSpeed = 0.5;
+        let level = 1;
+        let score = 0;
+        let gameOver = false;
+
+        let player = {
+            x: cellSize,
+            y: cellSize,
+            size: cellSize - 2,
+            color: 'yellow'
+        };
+
+        let ghosts = [
+            {x: 18 * cellSize, y: 18 * cellSize, color: 'red', dx: 0, dy: 0},
+            {x: 18 * cellSize, y: cellSize, color: 'pink', dx: 0, dy: 0},
+            {x: cellSize, y: 18 * cellSize, color: 'cyan', dx: 0, dy: 0}
+        ];
+
+        let maze = [
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+            [0,1,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0],
+            [0,1,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0],
+            [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+            [0,1,0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,1,0],
+            [0,1,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,0],
+            [0,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0],
+            [0,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,0],
+            [0,1,0,0,1,0,1,0,0,1,0,0,1,0,1,0,0,0,1,0],
+            [0,1,0,0,1,0,1,0,1,1,1,0,1,0,1,0,0,0,1,0],
+            [0,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,0],
+            [0,1,0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,1,0],
+            [0,1,0,0,1,0,1,1,1,1,1,1,1,0,1,0,0,0,1,0],
+            [0,1,1,1,1,0,1,0,0,0,0,0,1,0,1,1,1,1,1,0],
+            [0,1,0,0,1,0,1,1,1,1,1,1,1,0,1,0,0,0,1,0],
+            [0,1,0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,1,0],
+            [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        ];
+
+        let pellets = [];
+
+        function initGame() {
+            player.x = cellSize;
+            player.y = cellSize;
+            ghosts = [
+                {x: 18 * cellSize, y: 18 * cellSize, color: 'red', dx: 0, dy: 0},
+                {x: 18 * cellSize, y: cellSize, color: 'pink', dx: 0, dy: 0},
+                {x: cellSize, y: 18 * cellSize, color: 'cyan', dx: 0, dy: 0}
+            ];
+            initPellets();
+            gameOver = false;
+            score = 0;
+            level = 1;
+            ghostSpeed = 0.5;
+            updateGameInfo();
+        }
+
+        function initPellets() {
+            pellets = [];
+            for (let y = 0; y < maze.length; y++) {
+                for (let x = 0; x < maze[y].length; x++) {
+                    if (maze[y][x] === 1) {
+                        pellets.push({x: x * cellSize + cellSize / 2, y: y * cellSize + cellSize / 2});
+                    }
+                }
+            }
+        }
+
+        function drawMaze() {
+            ctx.fillStyle = 'blue';
+            for (let y = 0; y < maze.length; y++) {
+                for (let x = 0; x < maze[y].length; x++) {
+                    if (maze[y][x] === 0) {
+                        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+        }
+
+        function drawPellets() {
+            ctx.fillStyle = 'white';
+            pellets.forEach(pellet => {
+                ctx.beginPath();
+                ctx.arc(pellet.x, pellet.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x + cellSize / 2, player.y + cellSize / 2, player.size / 2, 0.2 * Math.PI, 1.8 * Math.PI);
+            ctx.lineTo(player.x + cellSize / 2, player.y + cellSize / 2);
+            ctx.fill();
+        }
+
+        function drawGhosts() {
+            ghosts.forEach(ghost => {
+                ctx.fillStyle = ghost.color;
+                ctx.beginPath();
+                ctx.arc(ghost.x + cellSize / 2, ghost.y + cellSize / 2, cellSize / 2 - 2, Math.PI, 2 * Math.PI);
+                ctx.lineTo(ghost.x + cellSize, ghost.y + cellSize);
+                ctx.lineTo(ghost.x, ghost.y + cellSize);
+                ctx.fill();
+            });
+        }
+
+        function moveGhosts() {
+            ghosts.forEach(ghost => {
+                if (ghost.dx === 0 && ghost.dy === 0) {
+                    let directions = [{x: -1, y: 0}, {x: 1, y: 0}, {x: 0, y: -1}, {x: 0, y: 1}];
+                    let validDirections = directions.filter(dir => {
+                        let newX = Math.floor(ghost.x / cellSize) + dir.x;
+                        let newY = Math.floor(ghost.y / cellSize) + dir.y;
+                        return maze[newY] && maze[newY][newX] === 1;
+                    });
+                    if (validDirections.length > 0) {
+                        let randomDir = validDirections[Math.floor(Math.random() * validDirections.length)];
+                        ghost.dx = randomDir.x * ghostSpeed;
+                        ghost.dy = randomDir.y * ghostSpeed;
+                    }
+                }
+
+                let newX = ghost.x + ghost.dx;
+                let newY = ghost.y + ghost.dy;
+
+                if (maze[Math.floor(newY / cellSize)] && maze[Math.floor(newY / cellSize)][Math.floor(newX / cellSize)] === 1) {
+                    ghost.x = newX;
+                    ghost.y = newY;
+                } else {
+                    ghost.dx = 0;
+                    ghost.dy = 0;
+                }
+            });
+        }
+
+        function eatPellet() {
+            for (let i = pellets.length - 1; i >= 0; i--) {
+                let pellet = pellets[i];
+                let dx = (player.x + cellSize / 2) - pellet.x;
+                let dy = (player.y + cellSize / 2) - pellet.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < cellSize / 2) {
+                    pellets.splice(i, 1);
+                    score += 10;
+                    updateGameInfo();
+                    if (pellets.length === 0) {
+                        nextLevel();
+                    }
+                }
+            }
+        }
+
+        function checkCollision() {
+            ghosts.forEach(ghost => {
+                let dx = (player.x + cellSize / 2) - (ghost.x + cellSize / 2);
+                let dy = (player.y + cellSize / 2) - (ghost.y + cellSize / 2);
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < cellSize) {
+                    gameOver = true;
+                    alert("¡Juego terminado! Tu puntuación final es: " + score);
+                }
+            });
+        }
+
+        function nextLevel() {
+            level++;
+            ghostSpeed *= 1.1; // Aumenta la velocidad de los fantasmas en un 10%
+            initGame();
+            alert("¡Nivel " + level + " completado! La velocidad de los fantasmas ha aumentado.");
+        }
+
+        function updateGameInfo() {
+            document.getElementById('level').textContent = level;
+            document.getElementById('score').textContent = score;
+        }
+
+        function update() {
+            if (!gameOver) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawMaze();
+                drawPellets();
+                drawPlayer();
+                drawGhosts();
+                moveGhosts();
+                eatPellet();
+                checkCollision();
+                requestAnimationFrame(update);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameOver) {
+                let newX = player.x;
+                let newY = player.y;
+                switch(e.key) {
+                    case 'ArrowUp': newY -= cellSize; break;
+                    case 'ArrowDown': newY += cellSize; break;
+                    case 'ArrowLeft': newX -= cellSize; break;
+                    case 'ArrowRight': newX += cellSize; break;
+                }
+                if (maze[Math.floor(newY / cellSize)] && maze[Math.floor(newY / cellSize)][Math.floor(newX / cellSize)] === 1) {
+                    player.x = newX;
+                    player.y = newY;
+                }
+            }
+        });
+
+        function restartGame() {
+            initGame();
+            update();
+        }
+
+        initGame();
+        update();
+    </script>
+</body>
+</html>
